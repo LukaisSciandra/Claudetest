@@ -352,9 +352,35 @@
       progressFill.style.width = fakeProgress + '%';
     }, 200);
 
+    const CACHE_KEY = 'anagram_solver_wordlist_v1';
+
+    // Serve from localStorage cache when available (works offline too)
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached && cached.length > 1000) {
+        wordList = cached.split('\n').filter(w => w.length > 0);
+        clearInterval(ticker);
+        progressFill.style.width = '100%';
+        statusBar.className = 'status-bar ready';
+        statusBar.innerHTML =
+          `&#10003; Dictionary ready &mdash; ${wordList.length.toLocaleString()} words loaded`;
+        solveBtn.disabled = false;
+        document.getElementById('letters').focus();
+        return;
+      }
+    } catch (_) {} // localStorage may be blocked (e.g. private browsing)
+
+    // Primary URL + CORS-proxy mirrors so the file works when opened
+    // directly from disk (file://) in Edge and other strict browsers.
+    const PRIMARY   = 'https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt';
+    const FALLBACK  = 'https://raw.githubusercontent.com/first20hours/google-10000-english/master/20k.txt';
+    const PROXY     = u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u);
+
     const sources = [
-      'https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt',
-      'https://raw.githubusercontent.com/first20hours/google-10000-english/master/20k.txt',
+      PRIMARY,
+      PROXY(PRIMARY),
+      FALLBACK,
+      PROXY(FALLBACK),
     ];
 
     let text = null;
@@ -363,7 +389,7 @@
         const res = await fetch(url);
         if (!res.ok) continue;
         text = await res.text();
-        if (text.length > 1000) break; // looks like a real word list
+        if (text.length > 1000) break;
       } catch (_) { continue; }
     }
 
@@ -374,6 +400,9 @@
       wordList = text.split(/\r?\n|\r/)
         .map(w => w.trim().toLowerCase())
         .filter(w => w.length > 0 && /^[a-z]+$/.test(w));
+
+      // Cache for future loads (ignore quota errors)
+      try { localStorage.setItem(CACHE_KEY, wordList.join('\n')); } catch (_) {}
 
       clearInterval(ticker);
       progressFill.style.width = '100%';
