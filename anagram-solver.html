@@ -352,16 +352,28 @@
       progressFill.style.width = fakeProgress + '%';
     }, 200);
 
-    try {
-      const res = await fetch(
-        'https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt'
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const sources = [
+      'https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt',
+      'https://raw.githubusercontent.com/first20hours/google-10000-english/master/20k.txt',
+    ];
 
-      const text = await res.text();
-      wordList = text.split('\n')
+    let text = null;
+    for (const url of sources) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        text = await res.text();
+        if (text.length > 1000) break; // looks like a real word list
+      } catch (_) { continue; }
+    }
+
+    try {
+      if (!text || text.length < 100) throw new Error('No usable word list retrieved');
+
+      // Handle \n, \r\n, and \r line endings
+      wordList = text.split(/\r?\n|\r/)
         .map(w => w.trim().toLowerCase())
-        .filter(w => w.length > 0);
+        .filter(w => w.length > 0 && /^[a-z]+$/.test(w));
 
       clearInterval(ticker);
       progressFill.style.width = '100%';
